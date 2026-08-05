@@ -19,6 +19,7 @@ It is disabled, deregistered, and its file deleted immediately.
 
 | Plugin | File | What it adds |
 |---|---|---|
+| Trivia | [`plugins/trivia.py`](plugins/trivia.py) | Multiplayer trivia: interactive A/B/C/D button embeds, categories + difficulty, per-server leaderboard, Reputation points |
 | Server Info | [`plugins/server_info.py`](plugins/server_info.py) | `/serverinfo` — server stats embed |
 | Dice Roller | [`plugins/dice_roller.py`](plugins/dice_roller.py) | `/roll 2d6+1`, `/coinflip` |
 | Fun Facts | [`plugins/fun_facts.py`](plugins/fun_facts.py) | `/fact` — random fun fact |
@@ -45,6 +46,9 @@ Quick checklist for a valid plugin:
 ```bash
 python3 scripts/validate.py            # AST-level checks (no Bark needed)
 BARK_ROOT=/path/to/bark python3 scripts/validate.py   # full import check
+
+# Trivia plugin has its own unit tests (need a bark checkout + venv):
+BARK_ROOT=/path/to/bark /path/to/bark/.venv/bin/pytest tests/
 ```
 
 ## License

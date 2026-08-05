@@ -9,9 +9,7 @@ changes nothing until you turn it on per server.
 
 from __future__ import annotations
 
-import discord
-
-from modules.base import BarkModule, CommandRegistration, EventRegistration
+from modules.base import BarkModule, EventRegistration
 
 _TRIGGER_WORDS = ("bark", "woof", "🐺")
 _REPLIES = ("Woof! 🐺", "Woof woof! 🐾", "Bark! 🐺")

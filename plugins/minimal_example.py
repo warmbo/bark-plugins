@@ -15,7 +15,6 @@ Rules for a valid plugin:
 from __future__ import annotations
 
 import discord
-
 from modules.base import BarkModule, CommandRegistration
 
 

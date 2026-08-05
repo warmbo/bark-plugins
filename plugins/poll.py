@@ -8,7 +8,6 @@ the Bark dashboard (Settings → Modules → Plugins) to install it.
 from __future__ import annotations
 
 import discord
-
 from modules.base import BarkModule, CommandRegistration
 
 _NUMBER_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]

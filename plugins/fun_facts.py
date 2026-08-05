@@ -10,7 +10,6 @@ from __future__ import annotations
 import random
 
 import discord
-
 from modules.base import BarkModule, CommandRegistration
 
 _FACTS = [

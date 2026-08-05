@@ -11,7 +11,6 @@ import random
 import re
 
 import discord
-
 from modules.base import BarkModule, CommandRegistration
 
 _DICE_RE = re.compile(r"^(\d*)d(\d+)([+-]\d+)?$", re.IGNORECASE)

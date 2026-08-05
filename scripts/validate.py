@@ -63,10 +63,20 @@ def ast_validate(path: Path) -> list[str]:
 
     name_attr = None
     for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == "name":
-                    name_attr = ast.literal_eval(node.value) if isinstance(node.value, ast.Constant) else None
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            # Local variables named `name` inside functions must not override
+            # the module's class attribute; only consider constant-string
+            # assignments and keep the FIRST one.
+            if (
+                isinstance(target, ast.Name)
+                and target.id == "name"
+                and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str)
+                and name_attr is None
+            ):
+                name_attr = node.value.value
     if not isinstance(name_attr, str) or not NAME_RE.fullmatch(name_attr):
         errors.append(f"module name {name_attr!r} is not a valid snake_case identifier")
     elif name_attr != path.stem:
@@ -81,7 +91,11 @@ def main() -> int:
     if bark_root:
         sys.path.insert(0, str(Path(bark_root).resolve()))
         try:
-            from services.plugin_manager import load_plugin_class, validate_plugin_name
+            from services.plugin_manager import (
+                PluginValidationError,
+                load_plugin_class,
+                validate_plugin_name,
+            )
         except ImportError as exc:
             print(f"! BARK_ROOT set but Bark could not be imported: {exc}", file=sys.stderr)
             bark_root = None
@@ -93,7 +107,7 @@ def main() -> int:
             try:
                 cls = load_plugin_class(path)
                 validate_plugin_name(cls.name)
-            except Exception as exc:
+            except PluginValidationError as exc:
                 errors.append(str(exc))
         status = "OK " if not errors else "BAD"
         print(f"[{status}] {path.name}")
