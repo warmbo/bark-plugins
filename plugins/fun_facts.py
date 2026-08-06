@@ -33,7 +33,7 @@ _FACTS = [
 
 class FunFactsPlugin(BarkModule):
     name = "fun_facts"
-    version = "1.0.0"
+    version = "1.1.0"
     description = "Adds a /fact command that shares a random fun fact."
     author = "Bark Plugins"
 
@@ -42,10 +42,37 @@ class FunFactsPlugin(BarkModule):
             CommandRegistration(name="fact", description="Share a random fun fact")
         ]
 
+    def get_settings_schema(self) -> dict:
+        return {
+            "type": "object",
+            "description": "Extra facts and presentation for the /fact command.",
+            "properties": {
+                "custom_facts": {
+                    "type": "string",
+                    "title": "Custom Facts",
+                    "description": "One fact per line. These are added to the "
+                    "built-in list when /fact is used.",
+                    "default": "",
+                },
+                "fact_prefix": {
+                    "type": "string",
+                    "title": "Fact Prefix",
+                    "description": "Emoji or text shown before each fact.",
+                    "default": "💡",
+                },
+            },
+        }
+
     def _make_fact_command(self):
         @discord.app_commands.command(name="fact", description="Share a random fun fact")
         async def fact_cmd(interaction: discord.Interaction):
-            await interaction.response.send_message(f"💡 {random.choice(_FACTS)}")
+            config = await self.load_dashboard_config(interaction.guild_id or 0)
+            pool = list(_FACTS)
+            custom = (config.get("custom_facts") or "").strip()
+            if custom:
+                pool.extend(line.strip() for line in custom.splitlines() if line.strip())
+            prefix = (config.get("fact_prefix") or "💡").strip() or "💡"
+            await interaction.response.send_message(f"{prefix} {random.choice(pool)}")
 
         return fact_cmd
 

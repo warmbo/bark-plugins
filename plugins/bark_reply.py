@@ -13,11 +13,12 @@ from modules.base import BarkModule, EventRegistration
 
 _TRIGGER_WORDS = ("bark", "woof", "🐺")
 _REPLIES = ("Woof! 🐺", "Woof woof! 🐾", "Bark! 🐺")
+_MEOWS = ("Meow! 🐱", "Meow? 🐱", "Meow meow! 🐾")
 
 
 class BarkReplyPlugin(BarkModule):
     name = "bark_reply"
-    version = "1.0.0"
+    version = "1.1.0"
     description = "Replies with a woof when someone says 'bark' (opt-in per server)."
     author = "Bark Plugins"
 
@@ -46,6 +47,15 @@ class BarkReplyPlugin(BarkModule):
                     "minimum": 1,
                     "maximum": 100,
                 },
+                "meow_chance": {
+                    "type": "integer",
+                    "title": "Meow chance (%)",
+                    "description": "The rare chance the reply is a 'Meow!' instead "
+                    "of a woof (0-100).",
+                    "default": 3,
+                    "minimum": 0,
+                    "maximum": 100,
+                },
             },
         }
 
@@ -65,13 +75,19 @@ class BarkReplyPlugin(BarkModule):
         if not config.get("auto_reply", False):
             return
         chance = int(config.get("reply_chance", 100) or 100)
+        meow_chance = int(config.get("meow_chance", 3) or 0)
         import random
 
         if random.randint(1, 100) > chance:
             return
 
+        if random.randint(1, 100) <= meow_chance:
+            reply = random.choice(_MEOWS)
+        else:
+            reply = random.choice(_REPLIES)
+
         try:
-            await message.channel.send(random.choice(_REPLIES))
+            await message.channel.send(reply)
         except Exception:
             self._logger.exception("bark_reply could not send a reply")
 

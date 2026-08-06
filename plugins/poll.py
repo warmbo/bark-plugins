@@ -15,7 +15,7 @@ _NUMBER_EMOJIS = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️�
 
 class PollPlugin(BarkModule):
     name = "poll"
-    version = "1.0.0"
+    version = "1.1.0"
     description = "Creates a quick reaction poll with /poll."
     author = "Bark Plugins"
 
@@ -23,6 +23,28 @@ class PollPlugin(BarkModule):
         return [
             CommandRegistration(name="poll", description="Create a reaction poll")
         ]
+
+    def get_settings_schema(self) -> dict:
+        return {
+            "type": "object",
+            "description": "Poll limits and display options.",
+            "properties": {
+                "max_options": {
+                    "type": "integer",
+                    "title": "Max Options",
+                    "description": "Maximum number of poll options (2-10).",
+                    "minimum": 2,
+                    "maximum": 10,
+                    "default": 4,
+                },
+                "show_author": {
+                    "type": "boolean",
+                    "title": "Show Author on Polls",
+                    "description": "Footer shows who created the poll.",
+                    "default": True,
+                },
+            },
+        }
 
     def _make_poll_command(self):
         @discord.app_commands.command(name="poll", description="Create a reaction poll")
@@ -48,11 +70,15 @@ class PollPlugin(BarkModule):
                 )
                 return
 
+            config = await self.load_dashboard_config(interaction.guild_id or 0)
+            max_options = int(config.get("max_options", 4) or 4)
+            show_author = bool(config.get("show_author", True))
+
             options = [option1, option2]
             for extra in (option3, option4):
                 if extra:
                     options.append(extra)
-            options = options[: len(_NUMBER_EMOJIS)]
+            options = options[: min(max_options, len(_NUMBER_EMOJIS))]
             if len(options) < 2:
                 await interaction.response.send_message(
                     "A poll needs at least two options.", ephemeral=True
@@ -67,9 +93,12 @@ class PollPlugin(BarkModule):
                     for index, option in enumerate(options)
                 ),
             )
-            embed.set_footer(
-                text=f"Poll by {interaction.user.display_name} — react to vote"
-            )
+            if show_author:
+                embed.set_footer(
+                    text=f"Poll by {interaction.user.display_name} — react to vote"
+                )
+            else:
+                embed.set_footer(text="React to vote")
             await interaction.response.send_message(embed=embed)
             message = await interaction.original_response()
             for index in range(len(options)):
