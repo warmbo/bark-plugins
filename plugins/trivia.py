@@ -381,8 +381,8 @@ class TriviaPlugin(BarkModule):
         return [
             {
                 "id": "leaderboard",
-                "label": "View Leaderboard",
-                "description": "Show the top trivia players for this server.",
+                "label": "Leaderboard",
+                "description": "Top trivia players for this server.",
                 "fields": [],
                 "endpoint": "leaderboard",
                 "auto_run": True,
@@ -1030,6 +1030,61 @@ class TriviaPlugin(BarkModule):
                 .limit(limit)
             )
             return [dict(row) for row in result.mappings()]
+
+    # ── Backup/export support ──────────────────────────
+
+    async def export_stats(self, guild_id: int) -> dict:
+        """Backup trivia scores for this guild (JSON-safe rows)."""
+        async with session_scope() as session_db:
+            result = await session_db.execute(
+                select(trivia_scores).where(
+                    trivia_scores.c.guild_id == str(guild_id)
+                )
+            )
+            rows = [dict(row) for row in result.mappings()]
+            for row in rows:
+                row.pop("guild_id", None)
+            return {"scores": rows}
+
+    async def import_stats(self, guild_id: int, stats: dict) -> list[str]:
+        """Restore trivia scores from a backup (upsert by user)."""
+        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+        scores = stats.get("scores") or []
+        if not scores:
+            return []
+        async with session_scope() as session_db:
+            for row in scores:
+                user_id = str(row.get("user_id", ""))
+                if not user_id:
+                    continue
+                payload = {
+                    "guild_id": str(guild_id),
+                    "user_id": user_id,
+                    "display_name": str(row.get("display_name", "")),
+                    "points": int(row.get("points", 0)),
+                    "correct": int(row.get("correct", 0)),
+                    "answered": int(row.get("answered", 0)),
+                    "games_played": int(row.get("games_played", 0)),
+                    "best_streak": int(row.get("best_streak", 0)),
+                    "updated_at": str(row.get("updated_at", "")),
+                }
+                stmt = sqlite_insert(trivia_scores).values(**payload)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["guild_id", "user_id"],
+                    set_={
+                        "display_name": stmt.excluded.display_name,
+                        "points": stmt.excluded.points,
+                        "correct": stmt.excluded.correct,
+                        "answered": stmt.excluded.answered,
+                        "games_played": stmt.excluded.games_played,
+                        "best_streak": stmt.excluded.best_streak,
+                        "updated_at": stmt.excluded.updated_at,
+                    },
+                )
+                await session_db.execute(stmt)
+            await session_db.commit()
+        return [f"trivia: restored {len(scores)} score row(s)"]
 
     async def _player_stats(self, guild_id: int, user_id: int) -> dict | None:
         async with session_scope() as session_db:
