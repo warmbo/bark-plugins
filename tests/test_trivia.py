@@ -130,6 +130,19 @@ def test_parse_opentdb_unescapes_and_shuffles(trivia):
     assert parsed["difficulty"] == "easy"
 
 
+def test_parse_opentdb_maps_category_name_to_slug(trivia):
+    parsed = trivia._parse_opentdb(
+        {
+            "question": "Q",
+            "correct_answer": "Right",
+            "incorrect_answers": ["W1", "W2", "W3"],
+            "category": "Entertainment: Video Games",
+            "difficulty": "easy",
+        }
+    )
+    assert parsed["category"] == "video_games"
+
+
 def test_parse_opentdb_correct_answer_appears_once(trivia):
     parsed = trivia._parse_opentdb(
         {
@@ -275,6 +288,100 @@ async def test_award_reputation_skips_when_rep_points_zero(db, trivia):
     session.correct_count = {1: 5}
     assert await trivia._award_reputation(session) == ""
     assert trivia.rep.calls == []
+
+
+# ── Question sources ──────────────────────────────────
+
+
+def test_parse_triviaapi_normalizes_item(trivia):
+    item = {
+        "category": "science",
+        "correctAnswer": "Oxygen",
+        "incorrectAnswers": ["Hydrogen", "Helium", "Carbon"],
+        "question": {"text": "What element has atomic number 8?"},
+        "difficulty": "easy",
+        "type": "text_choice",
+    }
+    parsed = trivia._parse_triviaapi(item)
+    assert parsed is not None
+    assert parsed["question"] == "What element has atomic number 8?"
+    assert parsed["options"][parsed["answer"]] == "Oxygen"
+    assert parsed["category"] == "science_nature"  # reverse-mapped to our slug
+    assert parsed["difficulty"] == "easy"
+
+
+def test_parse_triviaapi_rejects_unusable_item(trivia):
+    assert trivia._parse_triviaapi({"category": "science", "difficulty": "easy"}) is None
+    assert trivia._parse_triviaapi({"question": {"text": "x"}, "correctAnswer": "y"}) is None
+
+
+def test_settings_schema_exposes_sources(trivia):
+    props = trivia.get_settings_schema()["properties"]
+    for key in ("source_opentdb", "source_triviaapi", "source_builtin"):
+        assert key in props
+        assert props[key]["type"] == "boolean"
+        assert props[key]["default"] is True
+
+
+@pytest.mark.asyncio
+async def test_build_pool_uses_all_enabled_sources(db, trivia):
+    await trivia.enable()
+    # Stub the network sources; builtin is real.
+    trivia._fetch_questions = _stub_fetch([{"question": "OTDB Q", "correct_answer": "A",
+        "incorrect_answers": ["B", "C", "D"], "category_id": 9, "difficulty": "easy"}])
+    trivia._fetch_triviaapi = _stub_fetch([{"category": "science", "correctAnswer": "A",
+        "incorrectAnswers": ["B", "C", "D"], "question": {"text": "TAPI Q"}, "difficulty": "easy"}])
+
+    pool = await trivia._build_question_pool(9, "easy", 5, {})
+    assert len(pool) == 5  # 1 opentdb + 1 triviaapi + 3 builtin
+    assert {q["source"] for q in pool} == {"opentdb", "triviaapi", "builtin"}
+    assert all("source" in q for q in pool)
+
+
+@pytest.mark.asyncio
+async def test_build_pool_respects_disabled_sources(db, trivia):
+    await trivia.enable()
+    trivia._fetch_questions = _stub_fetch([{"question": "OTDB Q", "correct_answer": "A",
+        "incorrect_answers": ["B", "C", "D"], "category_id": 9, "difficulty": "easy"}])
+    trivia._fetch_triviaapi = _stub_fetch([{"category": "science", "correctAnswer": "A",
+        "incorrectAnswers": ["B", "C", "D"], "question": {"text": "TAPI Q"}, "difficulty": "easy"}])
+
+    pool = await trivia._build_question_pool(
+        9, "easy", 5, {"source_opentdb": False, "source_triviaapi": False}
+    )
+    assert len(pool) == 5
+    assert all(q["source"] == "builtin" for q in pool)
+
+
+@pytest.mark.asyncio
+async def test_build_pool_all_disabled_returns_empty(db, trivia):
+    await trivia.enable()
+    pool = await trivia._build_question_pool(
+        9, "easy", 5,
+        {"source_opentdb": False, "source_triviaapi": False, "source_builtin": False},
+    )
+    assert pool == []
+
+
+@pytest.mark.asyncio
+async def test_build_pool_skips_failing_source(db, trivia):
+    await trivia.enable()
+
+    async def _fail(*args, **kwargs):
+        return []
+
+    trivia._fetch_questions = _fail
+    trivia._fetch_triviaapi = _fail
+    pool = await trivia._build_question_pool(0, "any", 4, {})
+    assert len(pool) == 4
+    assert all(q["source"] == "builtin" for q in pool)
+
+
+def _stub_fetch(items):
+    async def _fetch(*args, **kwargs):
+        return items
+
+    return _fetch
 
 
 # ── In-memory answer flow ─────────────────────────────

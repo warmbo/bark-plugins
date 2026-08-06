@@ -51,11 +51,87 @@ from sqlalchemy import (
 logger = logging.getLogger("bark.plugins.trivia")
 
 OPENTDB_URL = "https://opentdb.com/api.php"
+TRIVIAAPI_URL = "https://the-trivia-api.com/v2/questions"
 OPENTDB_TIMEOUT = 8.0
 FETCH_RETRY_AFTER_429 = 3.0
 INTERLUDE_SECONDS = 4.0
 
+# Question sources. Order matters: sources are tried in this order when
+# building a game's question pool.
+SOURCE_ORDER = ("opentdb", "triviaapi", "builtin")
+DEFAULT_SOURCES = {"opentdb", "triviaapi", "builtin"}
+SOURCE_LABELS = {
+    "opentdb": "Open Trivia DB",
+    "triviaapi": "The Trivia API",
+    "builtin": "Built-in bank",
+}
+SOURCE_DESCRIPTIONS = {
+    "opentdb": "Open Trivia Database (https://opentdb.com) — free, no key, 24 categories, easy/medium/hard.",
+    "triviaapi": "The Trivia API (https://the-trivia-api.com) — free, no key required, its own large question pool.",
+    "builtin": "Offline-safe bank bundled with the plugin (~24 questions) — fills gaps when network sources fail or rate-limit.",
+}
+
 LETTERS = ("A", "B", "C", "D")
+
+# Our category slug -> The Trivia API's category slug (best-effort mapping).
+TRIVIAAPI_CATEGORIES: dict[str, str] = {
+    "general_knowledge": "general_knowledge",
+    "books": "arts_and_literature",
+    "art": "arts_and_literature",
+    "film": "film_and_tv",
+    "television": "film_and_tv",
+    "musicals_theatres": "film_and_tv",
+    "comics": "film_and_tv",
+    "anime_manga": "film_and_tv",
+    "cartoons_animations": "film_and_tv",
+    "music": "music",
+    "science_nature": "science",
+    "computers": "science",
+    "mathematics": "science",
+    "gadgets": "science",
+    "animals": "science",
+    "geography": "geography",
+    "history": "history",
+    "mythology": "history",
+    "politics": "society_and_culture",
+    "celebrities": "society_and_culture",
+    "vehicles": "sport_and_leisure",
+    "video_games": "sport_and_leisure",
+    "board_games": "sport_and_leisure",
+}
+REVERSE_TRIVIAAPI_CATEGORIES: dict[str, str] = {}
+for _our_slug, _their_slug in TRIVIAAPI_CATEGORIES.items():
+    # Multiple local slugs share a The Trivia API slug; keep the FIRST local
+    # mapping deterministically for display purposes.
+    REVERSE_TRIVIAAPI_CATEGORIES.setdefault(_their_slug, _our_slug)
+
+# OpenTDB results carry the category as a display NAME (e.g. "Science:
+# Computers"), not an id. Map names back to our slugs for the footer.
+OPENTDB_NAME_TO_SLUG: dict[str, str] = {
+    "General Knowledge": "general_knowledge",
+    "Entertainment: Books": "books",
+    "Entertainment: Film": "film",
+    "Entertainment: Music": "music",
+    "Entertainment: Musicals & Theatres": "musicals_theatres",
+    "Entertainment: Television": "television",
+    "Entertainment: Video Games": "video_games",
+    "Entertainment: Board Games": "board_games",
+    "Science & Nature": "science_nature",
+    "Science: Computers": "computers",
+    "Science: Mathematics": "mathematics",
+    "Science: Gadgets": "gadgets",
+    "Mythology": "mythology",
+    "Geography": "geography",
+    "History": "history",
+    "Politics": "politics",
+    "Art": "art",
+    "Celebrities": "celebrities",
+    "Animals": "animals",
+    "Vehicles": "vehicles",
+    "Entertainment: Comics": "comics",
+    "Entertainment: Japanese Anime & Manga": "anime_manga",
+    "Entertainment: Cartoon & Animations": "cartoons_animations",
+}
 
 # Open Trivia Database category id -> slug used in dashboard settings.
 CATEGORY_IDS: dict[str, int] = {
@@ -169,7 +245,7 @@ class _TriviaView(discord.ui.View):
 
 class TriviaPlugin(BarkModule):
     name = "trivia"
-    version = "1.0.0"
+    version = "1.1.0"
     description = "Multiplayer trivia: interactive embeds, leaderboards, and Reputation points."
     author = "Bark Plugins"
 
@@ -280,6 +356,24 @@ class TriviaPlugin(BarkModule):
                     "maximum": 600,
                     "default": 60,
                 },
+                "source_opentdb": {
+                    "type": "boolean",
+                    "title": "Open Trivia Database (opentdb.com)",
+                    "description": SOURCE_DESCRIPTIONS["opentdb"],
+                    "default": True,
+                },
+                "source_triviaapi": {
+                    "type": "boolean",
+                    "title": "The Trivia API (the-trivia-api.com)",
+                    "description": SOURCE_DESCRIPTIONS["triviaapi"],
+                    "default": True,
+                },
+                "source_builtin": {
+                    "type": "boolean",
+                    "title": "Built-in Question Bank",
+                    "description": SOURCE_DESCRIPTIONS["builtin"],
+                    "default": True,
+                },
             },
         }
 
@@ -310,7 +404,15 @@ class TriviaPlugin(BarkModule):
                     {"prefix": "🎮", "text": "Anyone can start a game with /trivia start in a channel. Questions post as interactive embeds — click A/B/C/D to answer."},
                     {"prefix": "🏆", "text": "Correct answers earn trivia points; the first correct answer earns a speed bonus. Scores accumulate on a per-server leaderboard."},
                     {"prefix": "⭐", "text": "Correct answers also earn Reputation points (capped per game), so trivia feeds the same Reputation system as the rest of the server."},
-                    {"prefix": "🎯", "text": "Questions come from the Open Trivia Database with a built-in fallback bank, so the game works even if the API is down."},
+                ],
+            },
+            {
+                "title": "Question sources",
+                "stories": [
+                    {"prefix": "📚", "text": "Open Trivia Database — opentdb.com. Free API, no key required, 24 categories, easy/medium/hard difficulty."},
+                    {"prefix": "🌐", "text": "The Trivia API — the-trivia-api.com. Free API, no key required, a second large question pool with its own categories."},
+                    {"prefix": "📦", "text": "Built-in bank — questions bundled with the plugin (~24). Offline-safe; fills any gap when a network source is down or rate-limited."},
+                    {"prefix": "🎛️", "text": "Which sources are used is a per-server setting (Configure tab). Every question shows its source in the embed footer, and the end-of-game summary shows the mix."},
                 ],
             },
         ]
@@ -471,13 +573,11 @@ class TriviaPlugin(BarkModule):
         await interaction.response.defer(ephemeral=True)
         await interaction.followup.send("Fetching questions… 🧠", ephemeral=True)
 
-        raw = await self._fetch_questions(category, difficulty, questions)
-        parsed = [self._parse_opentdb(item) for item in raw]
-        if len(parsed) < questions:
-            parsed.extend(self._fallback_questions(category, difficulty, questions - len(parsed)))
+        parsed = await self._build_question_pool(category, difficulty, questions, config)
         if not parsed:
             await interaction.followup.send(
-                "Could not load any trivia questions right now — try again in a minute.",
+                "Could not load any trivia questions — no enabled source returned "
+                "anything. Check which sources are enabled in Trivia settings.",
                 ephemeral=True,
             )
             return
@@ -495,8 +595,12 @@ class TriviaPlugin(BarkModule):
         )
         self._sessions[channel.id] = session
         await self._post_question(session)
+        source_labels = ", ".join(
+            dict.fromkeys(SOURCE_LABELS.get(q.get("source", "?"), "?") for q in session.questions)
+        )
         await interaction.followup.send(
-            f"🎉 Trivia started — {len(session.questions)} questions! Good luck!",
+            f"🎉 Trivia started — {len(session.questions)} questions! "
+            f"Sources: {source_labels}. Good luck!",
             ephemeral=True,
         )
 
@@ -602,8 +706,9 @@ class TriviaPlugin(BarkModule):
         )
         category_label = (question.get("category") or "").replace("_", " ").title()
         difficulty = question.get("difficulty") or "any"
+        source_label = SOURCE_LABELS.get(question.get("source", ""), "?")
         embed.set_footer(
-            text=f"{category_label} • {difficulty.title()} • "
+            text=f"{category_label} • {difficulty.title()} • 📚 {source_label} • "
             f"⏱ {session.time_per_question}s — click a button to answer"
         )
         options = question["options"]
@@ -745,6 +850,16 @@ class TriviaPlugin(BarkModule):
                     value=self._standing_snippet(session, limit=5),
                     inline=False,
                 )
+            counts: dict[str, int] = {}
+            for question in session.questions:
+                source = question.get("source", "builtin")
+                counts[source] = counts.get(source, 0) + 1
+            if counts:
+                source_line = " · ".join(
+                    f"{count} {SOURCE_LABELS.get(source, source)}"
+                    for source, count in counts.items()
+                )
+                embed.add_field(name="📚 Sources", value=source_line, inline=False)
             if rep_summary:
                 embed.add_field(name="⭐ Reputation", value=rep_summary, inline=False)
             embed.set_footer(text="Check /trivia leaderboard anytime")
@@ -861,6 +976,53 @@ class TriviaPlugin(BarkModule):
 
     # ── Question source ────────────────────────────────
 
+    async def _build_question_pool(
+        self, category_id: int, difficulty: str, amount: int, config: dict
+    ) -> list[dict]:
+        """Gather questions from every enabled source, in order, up to `amount`.
+
+        Each question dict carries a ``source`` key (one of SOURCE_ORDER) so
+        the UI can attribute every question. A failing source is skipped; the
+        next enabled source fills the gap. Returns an empty list only when no
+        source yields anything.
+        """
+        enabled = [
+            source
+            for source in SOURCE_ORDER
+            if bool(config.get(f"source_{source}", source in DEFAULT_SOURCES))
+        ]
+        if not enabled:
+            return []
+
+        pool: list[dict] = []
+        for source in enabled:
+            if len(pool) >= amount:
+                break
+            need = amount - len(pool)
+            try:
+                if source == "opentdb":
+                    raw = await self._fetch_questions(category_id, difficulty, need)
+                    pool.extend(
+                        {**self._parse_opentdb(item), "source": "opentdb"}
+                        for item in raw
+                    )
+                elif source == "triviaapi":
+                    raw = await self._fetch_triviaapi(category_id, difficulty, need)
+                    for item in raw:
+                        parsed = self._parse_triviaapi(item)
+                        if parsed is not None:
+                            pool.append({**parsed, "source": "triviaapi"})
+                elif source == "builtin":
+                    pool.extend(
+                        {**item, "source": "builtin"}
+                        for item in self._fallback_questions(category_id, difficulty, need)
+                    )
+            except Exception:
+                self._logger.exception("Trivia source '%s' failed", source)
+
+        random.shuffle(pool)
+        return pool
+
     async def _fetch_questions(self, category_id: int, difficulty: str, amount: int) -> list[dict]:
         """Fetch multiple-choice questions from OpenTDB. Retries once on 429."""
         params = {"amount": min(amount, 50), "type": "multiple"}
@@ -883,6 +1045,25 @@ class TriviaPlugin(BarkModule):
             self._logger.exception("OpenTDB fetch failed")
         return []
 
+    async def _fetch_triviaapi(self, category_id: int, difficulty: str, amount: int) -> list[dict]:
+        """Fetch questions from The Trivia API (no key required)."""
+        params = {"limit": min(amount, 50)}
+        if difficulty != "any":
+            params["difficulty"] = difficulty
+        category_slug = ID_TO_CATEGORY.get(category_id)
+        mapped = TRIVIAAPI_CATEGORIES.get(category_slug) if category_slug else None
+        if mapped:
+            params["categories"] = mapped
+        try:
+            async with httpx.AsyncClient(timeout=OPENTDB_TIMEOUT) as client:
+                response = await client.get(TRIVIAAPI_URL, params=params)
+            response.raise_for_status()
+            data = response.json()
+            return data if isinstance(data, list) else []
+        except Exception:
+            self._logger.exception("The Trivia API fetch failed")
+        return []
+
     @staticmethod
     def _parse_opentdb(item: dict) -> dict:
         """Normalize one OpenTDB result into the plugin's question shape."""
@@ -891,7 +1072,9 @@ class TriviaPlugin(BarkModule):
         incorrect = [html.unescape(str(value)) for value in item.get("incorrect_answers", [])]
         options = incorrect + [correct]
         random.shuffle(options)
-        category_slug = ID_TO_CATEGORY.get(int(item.get("category_id") or 0), "general_knowledge")
+        category_slug = OPENTDB_NAME_TO_SLUG.get(str(item.get("category", "")), "")
+        if not category_slug:
+            category_slug = ID_TO_CATEGORY.get(int(item.get("category_id") or 0), "general_knowledge")
         difficulty = str(item.get("difficulty", "any")).lower()
         return {
             "question": question,
@@ -899,6 +1082,31 @@ class TriviaPlugin(BarkModule):
             "answer": options.index(correct),
             "category": category_slug,
             "difficulty": difficulty,
+        }
+
+    @staticmethod
+    def _parse_triviaapi(item: dict) -> dict | None:
+        """Normalize one The Trivia API result; None when the item is unusable."""
+        question = html.unescape(str((item.get("question") or {}).get("text", "") or "").strip())
+        correct = html.unescape(str(item.get("correctAnswer", "") or "").strip())
+        incorrect = [
+            html.unescape(str(value).strip())
+            for value in item.get("incorrectAnswers", [])
+            if str(value).strip()
+        ]
+        if not question or not correct or not incorrect:
+            return None
+        options = incorrect + [correct]
+        random.shuffle(options)
+        category_slug = REVERSE_TRIVIAAPI_CATEGORIES.get(
+            str(item.get("category", "")), "general_knowledge"
+        )
+        return {
+            "question": question,
+            "options": options,
+            "answer": options.index(correct),
+            "category": category_slug,
+            "difficulty": str(item.get("difficulty", "any")).lower(),
         }
 
     def _fallback_questions(self, category_id: int, difficulty: str, count: int) -> list[dict]:
