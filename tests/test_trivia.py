@@ -92,6 +92,7 @@ class FakeResponse:
     def __init__(self):
         self.done = False
         self.sent = None
+        self.deferred = False
 
     def is_done(self):
         return self.done
@@ -100,13 +101,30 @@ class FakeResponse:
         self.done = True
         self.sent = content
 
+    async def defer(self, ephemeral=False):
+        self.done = True
+        self.deferred = True
+
+
+class _FakeMessage:
+    def __init__(self, message_id: int):
+        self.id = message_id
+
 
 class FakeFollowup:
+    _next_id = 1000
+
     def __init__(self):
         self.sent = None
+        self.edits = []
 
     async def send(self, content, ephemeral=False):
         self.sent = content
+        FakeFollowup._next_id += 1
+        return _FakeMessage(FakeFollowup._next_id)
+
+    async def edit_message(self, message_id, content=None, **kwargs):
+        self.edits.append((message_id, content))
 
 
 # ── Question source ───────────────────────────────────
@@ -394,19 +412,23 @@ async def test_answer_flow_correct_wrong_first_bonus_and_dupes(trivia):
     session.closed = False
     session.index = 0  # question 0: answer = index 1 ("4")
 
-    # Alice answers correctly first -> 5 + 2 bonus.
+    # Alice answers correctly first -> 5 + 2 bonus. Feedback is a followup.
     alice = FakeInteraction(1, "Alice")
     await trivia._on_answer(alice, 0, 1)
     assert session.points[1] == 7
     assert session.first_correct == 1
+    assert alice.followup.sent is not None
+    assert "Correct" in alice.followup.sent and "7" in alice.followup.sent
+    assert 1 in session.guess_messages
 
     # Bob answers correctly after -> no bonus.
     bob = FakeInteraction(2, "Bob")
     await trivia._on_answer(bob, 0, 1)
     assert session.points[2] == 5
+    assert "Correct" in bob.followup.sent
 
     # Alice clicks again (a NEW interaction, like a real second button click)
-    # -> rejected, no double count.
+    # -> rejected, no double count (this path stays a one-off ephemeral).
     alice_again = FakeInteraction(1, "Alice")
     await trivia._on_answer(alice_again, 0, 0)
     assert session.answered_count[1] == 1
@@ -418,6 +440,37 @@ async def test_answer_flow_correct_wrong_first_bonus_and_dupes(trivia):
     await trivia._on_answer(carol, 0, 0)
     assert session.points.get(3) is None
     assert session.streak[3] == 0
+    assert "Not quite" in carol.followup.sent
+
+
+@pytest.mark.asyncio
+async def test_guess_feedback_edits_existing_message(trivia):
+    session = _session(trivia, points_per_correct=5, first_bonus=2)
+    trivia._sessions[100] = session
+    session.closed = False
+    session.index = 0
+    # Q2 (index 1) is the sky question: answer index 1 = "Blue".
+
+    alice = FakeInteraction(1, "Alice")
+    await trivia._on_answer(alice, 0, 1)
+    first_id = session.guess_messages[1]
+    assert first_id is not None
+
+    # Second question, Alice answers again -> the SAME message gets edited,
+    # no new message is sent. (_post_question clears `answered` per question.)
+    session.index = 1
+    session.closed = False
+    session.answered.clear()
+    alice2 = FakeInteraction(1, "Alice")
+    await trivia._on_answer(alice2, 1, 1)
+    assert session.guess_messages[1] == first_id
+    assert alice2.followup.sent is None, "must not send a new feedback message"
+    assert alice2.followup.edits, "must edit the previous feedback message"
+    edited_id, edited_content = alice2.followup.edits[-1]
+    assert edited_id == first_id
+    assert "Q2" in edited_content
+    # Tally shows both results.
+    assert "Q1 ✅" in edited_content and "Q2 ✅" in edited_content
 
 
 @pytest.mark.asyncio

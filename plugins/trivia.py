@@ -245,7 +245,7 @@ class _TriviaView(discord.ui.View):
 
 class TriviaPlugin(BarkModule):
     name = "trivia"
-    version = "1.1.0"
+    version = "1.1.1"
     description = "Multiplayer trivia: interactive embeds, leaderboards, and Reputation points."
     author = "Bark Plugins"
 
@@ -802,6 +802,7 @@ class TriviaPlugin(BarkModule):
 
         question = session.questions[session.index]
         correct = option_index == question["answer"]
+        session.answer_log.setdefault(uid, []).append((session.index, correct))
         if correct:
             session.correct_count[uid] = session.correct_count.get(uid, 0) + 1
             session.streak[uid] = session.streak.get(uid, 0) + 1
@@ -819,7 +820,49 @@ class TriviaPlugin(BarkModule):
             answer_text = question["options"][question["answer"]]
             reply = f"❌ Not quite — the answer was **{answer_text}**."
 
-        await self._ephemeral(interaction, reply)
+        await self._guess_feedback(interaction, session, uid, reply)
+
+    async def _guess_feedback(
+        self,
+        interaction: discord.Interaction,
+        session: _TriviaSession,
+        uid: int,
+        result: str,
+    ) -> None:
+        """Send ONE ephemeral feedback message per player; edit it on later guesses.
+
+        Guesses otherwise pile up ephemeral messages and push the current
+        question off the player's screen — this keeps a single running tally.
+        """
+        content = result + self._tally_suffix(session, uid)
+        message_id = session.guess_messages.get(uid)
+        try:
+            if interaction.response.is_done():
+                if message_id is not None:
+                    await interaction.followup.edit_message(message_id, content=content)
+                    return
+            else:
+                await interaction.response.defer(ephemeral=True)
+                if message_id is not None:
+                    await interaction.followup.edit_message(message_id, content=content)
+                    return
+        except (discord.HTTPException, discord.NotFound):
+            self._logger.debug("Guess feedback edit failed; sending a new message")
+        message = await interaction.followup.send(content, ephemeral=True)
+        session.guess_messages[uid] = message.id
+
+    @staticmethod
+    def _tally_suffix(session: _TriviaSession, uid: int) -> str:
+        """Compact running result for one player: Q1 ✅ · Q2 ❌ — 12 pts."""
+        log = session.answer_log.get(uid, [])
+        marks = " · ".join(
+            f"Q{idx + 1} {'✅' if ok else '❌'}" for idx, ok in log
+        )
+        total = session.points.get(uid, 0)
+        suffix = f"\n{marks}" if marks else ""
+        if total:
+            suffix += f" — **{total} pt{'s' if total != 1 else ''}**"
+        return suffix
 
     async def _mark_first_correct(self, session: _TriviaSession, name: str) -> None:
         try:
@@ -1209,3 +1252,9 @@ class _TriviaSession:
         self.points: dict[int, int] = {}
         self.streak: dict[int, int] = {}
         self.names: dict[int, str] = {}
+        # Per-player guess feedback: user_id -> message id of their ONE
+        # ephemeral feedback message, which gets EDITED (not appended) on
+        # each subsequent guess so guesses never push the question away.
+        self.guess_messages: dict[int, int] = {}
+        # Per-player per-question result log: user_id -> [(question_index, correct)]
+        self.answer_log: dict[int, list[tuple[int, bool]]] = {}
