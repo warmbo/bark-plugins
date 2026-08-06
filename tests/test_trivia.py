@@ -341,6 +341,25 @@ def test_settings_schema_exposes_sources(trivia):
         assert props[key]["default"] is True
 
 
+def test_leaderboard_table_shape(trivia):
+    table = trivia._leaderboard_table([])
+    assert table["columns"] == ["#", "Player", "Points", "Correct", "Accuracy", "Games"]
+    assert table["rows"] == []
+
+    rows = [
+        {"user_id": "1", "display_name": "Alice", "points": 12, "correct": 3, "answered": 4, "games_played": 2},
+        {"user_id": "2", "display_name": None, "points": 5, "correct": 1, "answered": 2, "games_played": 1},
+    ]
+    table = trivia._leaderboard_table(rows)
+    assert table["rows"][0] == ["1", "Alice", "12", "3/4", "75%", "2"]
+    assert table["rows"][1] == ["2", "<user 2>", "5", "1/2", "50%", "1"]
+
+
+def test_leaderboard_action_marks_auto_run(trivia):
+    leaderboard = next(a for a in trivia.get_actions() if a["id"] == "leaderboard")
+    assert leaderboard["auto_run"] is True
+
+
 @pytest.mark.asyncio
 async def test_build_pool_uses_all_enabled_sources(db, trivia):
     await trivia.enable()

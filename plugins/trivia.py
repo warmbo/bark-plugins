@@ -245,7 +245,7 @@ class _TriviaView(discord.ui.View):
 
 class TriviaPlugin(BarkModule):
     name = "trivia"
-    version = "1.1.1"
+    version = "1.1.2"
     description = "Multiplayer trivia: interactive embeds, leaderboards, and Reputation points."
     author = "Bark Plugins"
 
@@ -385,6 +385,7 @@ class TriviaPlugin(BarkModule):
                 "description": "Show the top trivia players for this server.",
                 "fields": [],
                 "endpoint": "leaderboard",
+                "auto_run": True,
             },
             {
                 "id": "reset_scores",
@@ -425,16 +426,19 @@ class TriviaPlugin(BarkModule):
             if not check_api_permission(request, "trivia.view", guild_id):
                 return api_forbidden()
             rows = await self._top_scores(int(guild_id), 10)
-            lines = ["**🏆 Top 10 — Trivia Leaderboard**", ""]
             if not rows:
-                lines.append("No trivia scores yet. Start a game with `/trivia start`!")
-            for rank, row in enumerate(rows, start=1):
-                name = row["display_name"] or f"<user {row['user_id']}>"
-                lines.append(
-                    f"{rank}. **{name}** — {row['points']} pts "
-                    f"({row['correct']}/{row['answered']} correct)"
+                return api_success(
+                    {
+                        "message": "No trivia scores yet. Start a game with `/trivia start`!",
+                        "table": self._leaderboard_table([]),
+                    }
                 )
-            return api_success({"message": "\n".join(lines)})
+            return api_success(
+                {
+                    "message": f"🏆 Top {len(rows)} trivia players.",
+                    "table": self._leaderboard_table(rows),
+                }
+            )
 
         @router.post("/guilds/{guild_id}/modules/trivia/reset_scores")
         async def trivia_reset_scores(request: Request, guild_id: str):
@@ -995,6 +999,27 @@ class TriviaPlugin(BarkModule):
         if awarded:
             return f"{awarded} player{'s' if awarded != 1 else ''} earned Reputation points ⭐"
         return ""
+
+    @staticmethod
+    def _leaderboard_table(rows: list[dict]) -> dict:
+        """Shape leaderboard rows into {columns, rows} for the dashboard table."""
+        table_rows = []
+        for rank, row in enumerate(rows, start=1):
+            accuracy = f"{100 * row['correct'] // max(1, row['answered'])}%"
+            table_rows.append(
+                [
+                    str(rank),
+                    row["display_name"] or f"<user {row['user_id']}>",
+                    str(row["points"]),
+                    f"{row['correct']}/{row['answered']}",
+                    accuracy,
+                    str(row["games_played"]),
+                ]
+            )
+        return {
+            "columns": ["#", "Player", "Points", "Correct", "Accuracy", "Games"],
+            "rows": table_rows,
+        }
 
     async def _top_scores(self, guild_id: int, limit: int) -> list[dict]:
         async with session_scope() as session_db:
