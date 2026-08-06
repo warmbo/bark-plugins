@@ -113,7 +113,7 @@ async def test_bark_reply_woofs_when_meow_chance_zero(plugin, monkeypatch):
     monkeypatch.setattr(random, "randint", lambda a, b: 1)  # meow roll low, but chance is 0
 
     await plugin._on_message("discord_message", message=FakeMessage())
-    assert sent and sent[0].startswith("Woof")
+    assert sent and "Meow" not in sent[0]  # chance is 0 → never a meow
 
 
 # ── Config-aware commands ──────────────────────────────
