@@ -29,7 +29,12 @@ import discord
 import httpx
 from database.engine import session_scope
 from fastapi import APIRouter, Request
-from modules.base import BarkModule, CommandRegistration, PermissionDefinition
+from modules.base import (
+    BarkModule,
+    CommandRegistration,
+    PageRegistration,
+    PermissionDefinition,
+)
 from services.response import api_forbidden, api_success, check_api_permission
 from sqlalchemy import (
     Column,
@@ -175,6 +180,16 @@ class TriviaPlugin(BarkModule):
         self._last_end: dict[int, dict[int, float]] = {}
 
     # ── Registration ───────────────────────────────────
+
+    def get_dashboard_pages(self) -> list[PageRegistration]:
+        return [
+            PageRegistration(
+                route="/guild/{guild_id}/modules/trivia",
+                label="Trivia",
+                icon="brain",
+                category="fun",
+            )
+        ]
 
     def get_commands(self) -> list[CommandRegistration]:
         return [
