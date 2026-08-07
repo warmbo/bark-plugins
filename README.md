@@ -4,6 +4,10 @@ Extra, non-default plugins for the [Bark Discord bot](https://bark.warx.org).
 Each plugin is a **single `.py` file** you upload through the Bark dashboard —
 no restart, no editing the bot's code.
 
+Related repositories: the [bark](https://github.com/warmbo/bark) bot (its
+`dev` branch is the dev instance) and the [bark-site](https://github.com/warmbo/bark-site)
+landing page, which lists the core modules and points to this plugin set.
+
 ## Install a plugin (2 minutes)
 
 1. Open your Bark dashboard and pick a server (**Modules** page — or browse
