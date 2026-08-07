@@ -2,8 +2,9 @@
 
 Bark plugins are **single-file modules**. A plugin is one `.py` file that
 defines exactly one `BarkModule` subclass. You upload it through the dashboard
-(Settings → Modules → Plugins); Bark validates it, writes it to
-`<data_dir>/plugins/<name>.py`, registers it, and enables it immediately.
+(server → **Modules** page → **Plugins** box; owner-only); Bark validates it,
+writes it to `<data_dir>/plugins/<name>.py`, registers it, and enables it
+immediately.
 
 ## Minimum valid plugin
 
@@ -172,7 +173,7 @@ by module name).
 
 ## Removing a plugin
 
-**Settings → Modules → Plugins → Remove.** Bark disables the module
+**Modules → Plugins → Remove.** Bark disables the module
 (unsubscribes events, removes slash commands), deregisters it everywhere,
 deletes its database rows and its file, and its API routes answer 404. The
 change is immediate — no restart required — and survives restarts (the file is
