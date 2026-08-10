@@ -1,5 +1,5 @@
 """
-Bark Reply — a single-file Bark plugin demonstrating events + settings.
+Good Dog — a single-file Bark plugin demonstrating events + settings.
 
 Listens for messages containing the word "bark" and replies with a woof —
 but ONLY in guilds where an admin has enabled the ``auto_reply`` setting in
@@ -16,9 +16,9 @@ _REPLIES = ("Woof! 🐺", "Woof woof! 🐾", "Bark! 🐺")
 _MEOWS = ("Meow! 🐱", "Meow? 🐱", "Meow meow! 🐾")
 
 
-class BarkReplyPlugin(BarkModule):
-    name = "bark_reply"
-    version = "1.1.0"
+class GoodDogPlugin(BarkModule):
+    name = "good_dog"
+    version = "1.2.0"
     description = "Replies with a woof when someone says 'bark' (opt-in per server)."
     author = "Bark Plugins"
 

@@ -31,7 +31,7 @@ def _ctx():
 
 @pytest.fixture
 def plugin():
-    return _load_plugin("bark_reply").BarkReplyPlugin(_ctx())
+    return _load_plugin("good_dog").GoodDogPlugin(_ctx())
 
 
 # ── Settings schemas ───────────────────────────────────
@@ -40,7 +40,7 @@ def plugin():
 @pytest.mark.parametrize(
     "name,expected",
     [
-        ("bark_reply", {"auto_reply", "reply_chance", "meow_chance"}),
+        ("good_dog", {"auto_reply", "reply_chance", "meow_chance"}),
         ("dice_roller", {"max_dice", "max_sides", "coinflip_heads"}),
         ("fun_facts", {"custom_facts", "fact_prefix"}),
         ("poll", {"max_options", "show_author"}),
@@ -59,11 +59,11 @@ def test_plugin_exposes_settings_schema(name, expected):
         assert "default" in prop, f"{name} property missing default: {prop}"
 
 
-# ── bark_reply Meow easter egg ─────────────────────────
+# ── good_dog Meow easter egg ─────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_bark_reply_meows_when_meow_chance_hits(plugin, monkeypatch):
+async def test_good_dog_meows_when_meow_chance_hits(plugin, monkeypatch):
     sent = []
 
     class FakeChannel:
@@ -90,7 +90,7 @@ async def test_bark_reply_meows_when_meow_chance_hits(plugin, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_bark_reply_woofs_when_meow_chance_zero(plugin, monkeypatch):
+async def test_good_dog_woofs_when_meow_chance_zero(plugin, monkeypatch):
     sent = []
 
     class FakeChannel:

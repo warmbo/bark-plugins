@@ -120,7 +120,7 @@ config.get("auto_reply", False)
 **Default-off for anything that posts to a channel.** Discord messages are
 visible to every member of the server. A plugin that sends messages or
 reactions should gate on a per-guild setting the admin explicitly enables
-(see `plugins/bark_reply.py`).
+(see `plugins/good_dog.py`).
 
 ## API routes
 

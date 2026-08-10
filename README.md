@@ -33,7 +33,7 @@ It is disabled, deregistered, and its file deleted immediately.
 | Dice Roller | [`plugins/dice_roller.py`](plugins/dice_roller.py) | `/roll 2d6+1`, `/coinflip` |
 | Fun Facts | [`plugins/fun_facts.py`](plugins/fun_facts.py) | `/fact` — random fun fact |
 | Poll | [`plugins/poll.py`](plugins/poll.py) | `/poll` — reaction poll embed |
-| Bark Reply | [`plugins/bark_reply.py`](plugins/bark_reply.py) | Woofs at "bark" messages — opt-in per server (event + settings demo) |
+| Good Dog | [`plugins/good_dog.py`](plugins/good_dog.py) | Woofs at "bark" messages — opt-in per server (event + settings demo) |
 | Profiles | [`plugins/profiles.py`](plugins/profiles.py) | `/bark profile [user]` — rendered 1024×1792 profile card (reputation, tier progress, activity, badges, top channels) via bark's media engine (`services/media_engine`) |
 | Minimal Example | [`plugins/minimal_example.py`](plugins/minimal_example.py) | `/hello` — smallest valid plugin, the starting point for your own |
 
