@@ -1,39 +1,34 @@
 """
-Bark Profiles — rendered profile cards via the bark-media-engine.
+Bark Profiles — rendered profile cards via bark's media engine.
 
 `/bark profile [user]` renders a 1024×1792 profile card (Bark dashboard
 aesthetic: sharp glass panels, black/white/blue, JetBrains Mono) with the
 user's live Discord facts (name, avatar, roles, joined date, presence)
-merged with bark-DB data the engine collects (reputation, tier progress,
-activity bars, badges, top channels).
+merged with bark-DB data the media engine collects (reputation, tier
+progress, activity bars, badges, top channels).
 
-Pipeline: defer → GET engine data blocks (/v1/payload) → merge live member
-facts + channel names → POST /v1/render → poll /v1/jobs/{id} → read the
-cached file (same host) → followup with the image. If the engine is down
-or the render fails, falls back to a small embed — the command never
-hard-fails.
+Pipeline: defer → engine data blocks (/v1/payload) via the shared
+MediaEngineClient → merge live member facts + channel names → submit render
+job → read the cached file (same host) → followup with the image. If the
+engine is down or the render fails, falls back to a small embed — the
+command never hard-fails.
 
-Engine config (bark .env):
-  BARK_MEDIA_ENGINE_URL    default http://127.0.0.1:8094
-  BARK_MEDIA_ENGINE_TOKEN  required (matches the engine's .env)
+The media engine lives in bark core (services/media_engine) and is shared
+by any module; config via bark .env:
+  BARK_MEDIA_ENGINE_URL    default http://127.0.0.1:8094 (dev instance: 8095)
+  BARK_MEDIA_ENGINE_TOKEN  required (matches the engine's)
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import os
 from typing import Optional
 
 import discord
-import httpx
 from modules.base import BarkModule, CommandRegistration
+from services.media_engine.client import MediaEngineClient
 
 logger = logging.getLogger("bark.modules.profiles")
-
-ENGINE_URL_DEFAULT = "http://127.0.0.1:8094"
-JOB_POLL_INTERVAL_S = 0.3
-JOB_POLL_MAX = 60  # ~18s of polling before giving up
 
 
 # ── config helpers ────────────────────────────────────────────────────────
@@ -121,9 +116,9 @@ def resolve_channel_names(data: dict, guild) -> None:
 
 class ProfilesPlugin(BarkModule):
     name = "profiles"
-    version = "1.0.0"
+    version = "2.0.0"
     description = ("Renders a graphical profile card (reputation, activity, "
-                   "badges, top channels) via the bark-media-engine.")
+                   "badges, top channels) via bark's media engine.")
     author = "Bark Plugins"
 
     # ── registration ─────────────────────────────────────────────────────
@@ -174,60 +169,6 @@ class ProfilesPlugin(BarkModule):
             },
         }
 
-    # ── engine client ────────────────────────────────────────────────────
-
-    def _engine_url(self) -> str:
-        return os.environ.get("BARK_MEDIA_ENGINE_URL", ENGINE_URL_DEFAULT).rstrip("/")
-
-    def _engine_headers(self) -> dict:
-        return {"Authorization": f"Bearer {os.environ.get('BARK_MEDIA_ENGINE_TOKEN', '')}"}
-
-    async def _collect_data(self, guild_id: int, user_id: int) -> dict:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                f"{self._engine_url()}/v1/payload",
-                json={"kind": "profile", "guild_id": str(guild_id), "user_id": str(user_id)},
-                headers=self._engine_headers(),
-            )
-            resp.raise_for_status()
-            return resp.json()
-
-    async def _render(self, payload: dict, guild_id: int, user_id: int,
-                      config: dict) -> str:
-        """Submit + poll a render job; returns the cached file path."""
-        ttl = int(_setting(config, "delivery", "cache_ttl", 900) or 900)
-        theme = str(_setting(config, "appearance", "theme", "bark") or "bark")
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                f"{self._engine_url()}/v1/render",
-                json={
-                    "kind": "profile",
-                    "guild_id": str(guild_id),
-                    "user_id": str(user_id),
-                    "theme": theme,
-                    "art_mode": "procedural",
-                    "payload": payload,
-                    "output": "png",
-                    "cache_ttl": ttl,
-                },
-                headers=self._engine_headers(),
-            )
-            resp.raise_for_status()
-            job_id = resp.json()["job_id"]
-
-            for _ in range(JOB_POLL_MAX):
-                await asyncio.sleep(JOB_POLL_INTERVAL_S)
-                jr = await client.get(
-                    f"{self._engine_url()}/v1/jobs/{job_id}", headers=self._engine_headers()
-                )
-                jr.raise_for_status()
-                job = jr.json()
-                if job["status"] == "done":
-                    return job["file"]
-                if job["status"] == "error":
-                    raise RuntimeError(job.get("error") or "render failed")
-            raise TimeoutError("render job did not finish in time")
-
     # ── command ──────────────────────────────────────────────────────────
 
     def _make_profile_command(self):
@@ -255,12 +196,18 @@ class ProfilesPlugin(BarkModule):
                 except Exception:
                     member = None
 
+            client = MediaEngineClient()
             try:
-                data = await self._collect_data(guild.id, target.id)
+                data = await client.collect_payload("profile", guild.id, target.id)
                 data["user"] = user_block(member, target)
                 data["roles"] = roles_block(member)
                 resolve_channel_names(data, guild)
-                path = await self._render(data, guild.id, target.id, config)
+                theme = str(_setting(config, "appearance", "theme", "bark") or "bark")
+                ttl = int(_setting(config, "delivery", "cache_ttl", 900) or 900)
+                path = await client.render(
+                    "profile", guild.id, target.id, payload=data,
+                    theme=theme, cache_ttl=ttl,
+                )
                 await interaction.followup.send(
                     file=discord.File(path, filename="profile.png")
                 )

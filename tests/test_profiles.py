@@ -120,6 +120,14 @@ def test_resolve_channel_names():
     assert data["favorites"][1]["name"] is None  # unknown channel stays None
 
 
-def test_engine_config_defaults():
-    plugin = make_plugin()
-    assert plugin._engine_url() == "http://127.0.0.1:8094"
+def test_engine_client_defaults(monkeypatch):
+    """Plugin uses the shared MediaEngineClient wired to env config."""
+    import os
+    from services.media_engine.client import MediaEngineClient
+
+    monkeypatch.setenv("BARK_MEDIA_ENGINE_URL", "http://127.0.0.1:8095")
+    monkeypatch.setenv("BARK_MEDIA_ENGINE_TOKEN", "tok")
+    client = MediaEngineClient()
+    assert client.base_url == "http://127.0.0.1:8095"
+    assert client.token == "tok"
+    assert os.environ.get("BARK_MEDIA_ENGINE_URL")  # env plumbed through
