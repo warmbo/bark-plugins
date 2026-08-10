@@ -34,6 +34,7 @@ It is disabled, deregistered, and its file deleted immediately.
 | Fun Facts | [`plugins/fun_facts.py`](plugins/fun_facts.py) | `/fact` — random fun fact |
 | Poll | [`plugins/poll.py`](plugins/poll.py) | `/poll` — reaction poll embed |
 | Bark Reply | [`plugins/bark_reply.py`](plugins/bark_reply.py) | Woofs at "bark" messages — opt-in per server (event + settings demo) |
+| Profiles | [`plugins/profiles.py`](plugins/profiles.py) | `/bark profile [user]` — rendered 1024×1792 profile card (reputation, tier progress, activity, badges, top channels) via bark's media engine (`services/media_engine`) |
 | Minimal Example | [`plugins/minimal_example.py`](plugins/minimal_example.py) | `/hello` — smallest valid plugin, the starting point for your own |
 
 ## Writing your own plugins
