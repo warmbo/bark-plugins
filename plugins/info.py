@@ -133,7 +133,8 @@ class InfoPlugin(BarkModule):
             )
             embed.set_thumbnail(url=target.display_avatar.url)
             embed.add_field(name="🆔 ID", value=str(target.id), inline=True)
-            created = format_dt(target.created_at, style="R")
+            created_at = getattr(target, "created_at", None)
+            created = format_dt(created_at, style="R") if created_at else "Unknown"
             embed.add_field(name="🐣 Account", value=created, inline=True)
             joined = format_dt(target.joined_at, style="R") if target.joined_at else "Unknown"
             embed.add_field(name="📅 Joined", value=joined, inline=True)
@@ -158,33 +159,38 @@ class InfoPlugin(BarkModule):
         )
         @discord.app_commands.describe(role="Role to inspect")
         async def roleinfo_cmd(interaction: discord.Interaction, role: discord.Role):
-            embed = discord.Embed(title=role.name, color=role.color)
+            color = getattr(role, "color", None) or discord.Color.default()
+            embed = discord.Embed(title=role.name, color=color)
             embed.add_field(name="🆔 ID", value=str(role.id), inline=True)
+            created_at = getattr(role, "created_at", None)
+            created = format_dt(created_at, style="R") if created_at else "Unknown"
             embed.add_field(
-                name="📅 Created", value=format_dt(role.created_at, style="R"), inline=True
+                name="📅 Created", value=created, inline=True
             )
-            embed.add_field(name="👥 Members", value=str(len(role.members)), inline=True)
-            embed.add_field(name="🔖 Hoisted", value="Yes" if role.hoist else "No", inline=True)
+            embed.add_field(name="👥 Members", value=str(len(getattr(role, "members", []))), inline=True)
+            embed.add_field(name="🔖 Hoisted", value="Yes" if getattr(role, "hoist", False) else "No", inline=True)
             embed.add_field(
-                name="🤖 Managed", value="Yes" if role.managed else "No", inline=True
+                name="🤖 Managed", value="Yes" if getattr(role, "managed", False) else "No", inline=True
             )
             embed.add_field(
                 name="📌 Mentionable",
-                value="Yes" if role.mentionable else "No",
+                value="Yes" if getattr(role, "mentionable", False) else "No",
                 inline=True,
             )
-            embed.add_field(name="🎨 Color", value=str(role.color), inline=True)
-            key_perms = [
-                perm.replace("_", " ").title()
-                for perm, value in role.permissions
-                if value
-            ][:8]
-            if key_perms:
-                embed.add_field(
-                    name="⚡ Key Permissions",
-                    value=", ".join(key_perms),
-                    inline=False,
-                )
+            embed.add_field(name="🎨 Color", value=str(color), inline=True)
+            perms = getattr(role, "permissions", None)
+            if perms is not None:
+                key_perms = [
+                    perm.replace("_", " ").title()
+                    for perm, value in perms
+                    if value
+                ][:8]
+                if key_perms:
+                    embed.add_field(
+                        name="⚡ Key Permissions",
+                        value=", ".join(key_perms),
+                        inline=False,
+                    )
             await interaction.response.send_message(embed=embed)
 
         return roleinfo_cmd
@@ -208,10 +214,10 @@ class InfoPlugin(BarkModule):
             )
             embed.add_field(name="🆔 ID", value=str(target.id), inline=True)
             embed.add_field(name="📁 Type", value=str(target.type).title(), inline=True)
+            created_at = getattr(target, "created_at", None)
+            created = format_dt(created_at, style="R") if created_at else "Unknown"
             embed.add_field(
-                name="📅 Created",
-                value=format_dt(target.created_at, style="R"),
-                inline=True,
+                name="📅 Created", value=created, inline=True
             )
             if getattr(target, "category", None):
                 embed.add_field(

@@ -202,7 +202,9 @@ class GiveawayPlugin(BarkModule):
                     continue
 
     async def _draw_loop(self) -> None:
-        await self.ctx.bot.wait_until_ready()
+        wait_ready = getattr(self.ctx.bot, "wait_until_ready", None)
+        if callable(wait_ready):
+            await wait_ready()
         while True:
             try:
                 await self._check_draws()
@@ -293,7 +295,7 @@ class GiveawayPlugin(BarkModule):
     def _is_admin(interaction: discord.Interaction) -> bool:
         if interaction.guild is None:
             return False
-        if interaction.guild.owner_id and interaction.user.id == interaction.guild.owner_id:
+        if getattr(interaction.guild, "owner_id", None) and interaction.user.id == interaction.guild.owner_id:
             return True
         return bool(
             getattr(interaction.user, "guild_permissions", None)

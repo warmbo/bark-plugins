@@ -171,7 +171,9 @@ class BirthdaysPlugin(BarkModule):
             self._loop_task = None
 
     async def _announce_loop(self) -> None:
-        await self.ctx.bot.wait_until_ready()
+        wait_ready = getattr(self.ctx.bot, "wait_until_ready", None)
+        if callable(wait_ready):
+            await wait_ready()
         while True:
             try:
                 await self._announce_today()
@@ -235,7 +237,7 @@ class BirthdaysPlugin(BarkModule):
     def _is_admin(interaction: discord.Interaction) -> bool:
         if interaction.guild is None:
             return False
-        if interaction.guild.owner_id and interaction.user.id == interaction.guild.owner_id:
+        if getattr(interaction.guild, "owner_id", None) and interaction.user.id == interaction.guild.owner_id:
             return True
         return bool(
             getattr(interaction.user, "guild_permissions", None)
