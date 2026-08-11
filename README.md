@@ -28,8 +28,8 @@ It is disabled, deregistered, and its file deleted immediately.
 
 | Plugin | File | What it adds |
 |---|---|---|
-| Fun | [`plugins/fun.py`](plugins/fun.py) | `/roll`, `/coinflip`, `/fact`, `/eightball` — unified random/fun commands |
-| Info & Tools | [`plugins/info.py`](plugins/info.py) | `/serverinfo`, `/userinfo`, `/roleinfo`, `/channelinfo`, `/ping` |
+| Fun | [`plugins/fun.py`](plugins/fun.py) | `/roll`, `/coinflip`, `/fact`, `/eightball` — unified random/fun commands (replaces the old `dice_roller` + `fun_facts` plugins) |
+| Info & Tools | [`plugins/info.py`](plugins/info.py) | `/serverinfo`, `/userinfo`, `/roleinfo`, `/channelinfo`, `/ping` (replaces the old `server_info` plugin) |
 | Birthdays | [`plugins/birthdays.py`](plugins/birthdays.py) | `/birthday` set/list/remove — announces birthdays in a channel on the day |
 | Giveaway | [`plugins/giveaway.py`](plugins/giveaway.py) | `/giveaway` create/end/list — react-to-enter, auto winner drawing |
 | Trivia | [`plugins/trivia.py`](plugins/trivia.py) | Multiplayer trivia: interactive A/B/C/D button embeds, categories + difficulty, per-server leaderboard, Reputation points |
@@ -38,17 +38,10 @@ It is disabled, deregistered, and its file deleted immediately.
 | Good Dog | [`plugins/good_dog.py`](plugins/good_dog.py) | Woofs at "bark" messages — opt-in per server (event + settings demo) |
 | Minimal Example | [`plugins/minimal_example.py`](plugins/minimal_example.py) | `/hello` — smallest valid plugin, the starting point for your own |
 
-### Superseded by the Fun / Info modules
-
-| Plugin | Replaced by |
-|---|---|
-| [`plugins/dice_roller.py`](plugins/dice_roller.py) | `fun` (same `/roll`, `/coinflip`, plus facts + 8-ball) |
-| [`plugins/fun_facts.py`](plugins/fun_facts.py) | `fun` (`/fact` now lives there) |
-| [`plugins/server_info.py`](plugins/server_info.py) | `info` (`/serverinfo` now lives there, plus more) |
-
-The old single-command plugins are kept in the repo for anyone already running
-them (uploading the replacement `fun`/`info` module and removing the old one
-keeps every command working under the same name).
+The old `dice_roller`, `fun_facts`, and `server_info` single-command plugins
+were removed — their commands now live under the unified `fun` and `info`
+modules above. If you already ran an old one, upload the replacement
+(`fun`/`info`) and remove the old file.
 
 ## Writing your own plugins
 
