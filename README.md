@@ -28,14 +28,27 @@ It is disabled, deregistered, and its file deleted immediately.
 
 | Plugin | File | What it adds |
 |---|---|---|
+| Fun | [`plugins/fun.py`](plugins/fun.py) | `/roll`, `/coinflip`, `/fact`, `/eightball` — unified random/fun commands |
+| Info & Tools | [`plugins/info.py`](plugins/info.py) | `/serverinfo`, `/userinfo`, `/roleinfo`, `/channelinfo`, `/ping` |
+| Birthdays | [`plugins/birthdays.py`](plugins/birthdays.py) | `/birthday` set/list/remove — announces birthdays in a channel on the day |
+| Giveaway | [`plugins/giveaway.py`](plugins/giveaway.py) | `/giveaway` create/end/list — react-to-enter, auto winner drawing |
 | Trivia | [`plugins/trivia.py`](plugins/trivia.py) | Multiplayer trivia: interactive A/B/C/D button embeds, categories + difficulty, per-server leaderboard, Reputation points |
-| Server Info | [`plugins/server_info.py`](plugins/server_info.py) | `/serverinfo` — server stats embed |
-| Dice Roller | [`plugins/dice_roller.py`](plugins/dice_roller.py) | `/roll 2d6+1`, `/coinflip` |
-| Fun Facts | [`plugins/fun_facts.py`](plugins/fun_facts.py) | `/fact` — random fun fact |
 | Poll | [`plugins/poll.py`](plugins/poll.py) | `/poll` — reaction poll embed |
-| Good Dog | [`plugins/good_dog.py`](plugins/good_dog.py) | Woofs at "bark" messages — opt-in per server (event + settings demo) |
 | Profiles | [`plugins/profiles.py`](plugins/profiles.py) | `/bark profile [user]` — rendered 1024×1792 profile card (reputation, tier progress, activity, badges, top channels) via bark's media engine (`services/media_engine`) |
+| Good Dog | [`plugins/good_dog.py`](plugins/good_dog.py) | Woofs at "bark" messages — opt-in per server (event + settings demo) |
 | Minimal Example | [`plugins/minimal_example.py`](plugins/minimal_example.py) | `/hello` — smallest valid plugin, the starting point for your own |
+
+### Superseded by the Fun / Info modules
+
+| Plugin | Replaced by |
+|---|---|
+| [`plugins/dice_roller.py`](plugins/dice_roller.py) | `fun` (same `/roll`, `/coinflip`, plus facts + 8-ball) |
+| [`plugins/fun_facts.py`](plugins/fun_facts.py) | `fun` (`/fact` now lives there) |
+| [`plugins/server_info.py`](plugins/server_info.py) | `info` (`/serverinfo` now lives there, plus more) |
+
+The old single-command plugins are kept in the repo for anyone already running
+them (uploading the replacement `fun`/`info` module and removing the old one
+keeps every command working under the same name).
 
 ## Writing your own plugins
 
