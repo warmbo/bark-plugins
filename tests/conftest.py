@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-BARK_ROOT = Path(os.environ.get("BARK_ROOT", "/home/cody/Projects/bark-avc")).resolve()
+BARK_ROOT = Path(os.environ.get("BARK_ROOT", "/home/cody/Projects/bark")).resolve()
 if BARK_ROOT not in sys.path:
     sys.path.insert(0, str(BARK_ROOT))
 
