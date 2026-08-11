@@ -41,10 +41,28 @@ def plugin():
     "name,expected",
     [
         ("good_dog", {"auto_reply", "reply_chance", "meow_chance"}),
-        ("dice_roller", {"max_dice", "max_sides", "coinflip_heads"}),
-        ("fun_facts", {"custom_facts", "fact_prefix"}),
+        (
+            "fun",
+            {
+                "max_dice",
+                "max_sides",
+                "coinflip_heads",
+                "custom_facts",
+                "fact_prefix",
+                "custom_8ball",
+            },
+        ),
         ("poll", {"max_options", "show_author"}),
-        ("server_info", {"show_channels", "show_roles", "show_boosts", "show_owner", "show_created"}),
+        (
+            "info",
+            {
+                "show_channels",
+                "show_roles",
+                "show_boosts",
+                "show_owner",
+                "show_created",
+            },
+        ),
     ],
 )
 def test_plugin_exposes_settings_schema(name, expected):
@@ -120,9 +138,9 @@ async def test_good_dog_woofs_when_meow_chance_zero(plugin, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_dice_roller_respects_max_dice_and_max_sides(monkeypatch):
-    module = _load_plugin("dice_roller")
-    plugin = module.DiceRollerPlugin(_ctx())
+async def test_fun_roll_respects_max_dice_and_max_sides(monkeypatch):
+    module = _load_plugin("fun")
+    plugin = module.FunPlugin(_ctx())
     roll_cmd = plugin._make_roll_command()
 
     sent = []
@@ -149,9 +167,9 @@ async def test_dice_roller_respects_max_dice_and_max_sides(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_fun_facts_uses_custom_facts_and_prefix(monkeypatch):
-    module = _load_plugin("fun_facts")
-    plugin = module.FunFactsPlugin(_ctx())
+async def test_fun_fact_uses_custom_facts_and_prefix(monkeypatch):
+    module = _load_plugin("fun")
+    plugin = module.FunPlugin(_ctx())
     fact_cmd = plugin._make_fact_command()
 
     sent = []
@@ -180,9 +198,9 @@ async def test_fun_facts_uses_custom_facts_and_prefix(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_server_info_hides_disabled_sections(monkeypatch):
-    module = _load_plugin("server_info")
-    plugin = module.ServerInfoPlugin(_ctx())
+async def test_info_serverinfo_hides_disabled_sections(monkeypatch):
+    module = _load_plugin("info")
+    plugin = module.InfoPlugin(_ctx())
     cmd = plugin._make_serverinfo_command()
 
     embed_holder = {}
